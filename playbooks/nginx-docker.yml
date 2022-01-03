@@ -1,0 +1,51 @@
+---
+- name : nginx, apache, docker
+  hosts: all
+  become: yes
+
+  vars:
+    source_dir: "/var/www/html/demo/"
+    destin_dir: "/home/{{ ansible_user }}/demo"
+
+  tasks:
+  - name: copy files
+    copy: 
+      src  : "{{ source_dir }}" 
+      dest : "{{ destin_dir }}"
+  
+  - name: install aptitude via apt
+    apt: name=aptitude state=latest update_cache=yes force_apt_get=yes
+
+  - name: install required system packages
+    apt: name={{ item }} state=latest update_cache=yes
+    loop: [ 'apt-transport-https', 'ca-certificates', 'curl', 'software-properties-common', 'python3-pip', 'virtualenv', 'python3-setuptools']
+
+  - name: add docker gpg key
+    apt_key:
+      url: https://download.docker.com/linux/ubuntu/gpg
+      state: present
+
+  - name: add docker repo
+    apt_repository:
+      repo: deb https://download.docker.com/linux/ubuntu bionic stable
+      state: present
+
+  - name: update apt and install docker-ce
+    apt: update_cache=yes name=docker-ce state=latest
+
+  - name: install python docker lib
+    pip:
+      name: docker
+
+  - name: install docker-compose
+    pip:
+      name: docker-compose
+
+  - name: build apache image
+    shell: "docker build {{ destin_dir }}/data/apache/ --tag my-apache:latest"
+
+  - name: build nginx image
+    shell: "docker build {{ destin_dir }}/data/nginx/ --tag my-nginx:latest"
+
+  - name: run via docker-compose
+    shell: "docker-compose -f {{ destin_dir }}/docker-compose.yml up -d"
